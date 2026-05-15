@@ -1,0 +1,11 @@
+{
+  "name": "tarot-app",
+  "version": "1.0.0",
+  "description": "Tarot reading app with Claude API",
+  "main": "index.html",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.20.0"
+  },
+  "author": "",
+  "license": "ISC"
+}

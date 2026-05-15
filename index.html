@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>당신의 타로 리딩</title>
+    <style>
+        body {
+            background-color: #0a0a1a;
+            color: #f0e68c;
+            font-family: 'Pretendard', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-image: radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px),
+                              radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px);
+            background-size: 550px 550px, 350px 350px;
+        }
+        .container { text-align: center; max-width: 800px; padding: 20px; }
+        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; letter-spacing: 5px; }
+        .subtitle { font-size: 1.2rem; margin-bottom: 3rem; opacity: 0.8; }
+        .cards-container { display: flex; justify-content: center; gap: 20px; margin-bottom: 3rem; }
+        .card {
+            width: 150px;
+            height: 250px;
+            border: 1px solid #4a4a8a;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-around;
+            background: rgba(20, 20, 40, 0.8);
+            padding: 15px;
+            box-shadow: 0 0 15px rgba(74, 74, 138, 0.3);
+        }
+        .card-pos { font-size: 0.8rem; color: #8a8ab5; margin-bottom: 10px; }
+        .card-symbol { font-size: 3rem; margin: 10px 0; }
+        .card-name { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; }
+        .reading-box {
+            background: rgba(15, 15, 35, 0.9);
+            border: 1px solid #3a3a6a;
+            border-radius: 8px;
+            padding: 40px;
+            min-height: 200px;
+            line-height: 1.8;
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            white-space: pre-wrap;
+            text-align: left;
+        }
+        .btn {
+            background: transparent;
+            color: #f0e68c;
+            border: 1px solid #f0e68c;
+            padding: 12px 40px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn:hover { background: #f0e68c; color: #0a0a1a; }
+        .loading { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>당신의 타로 리딩</h1>
+        <div class="subtitle">일반 리딩</div>
+
+        <div class="cards-container">
+            <div class="card">
+                <div class="card-pos">과거 (PAST)</div>
+                <div class="card-num">IX</div>
+                <div class="card-symbol">✨</div>
+                <div class="card-name">THE HERMIT</div>
+            </div>
+            <div class="card">
+                <div class="card-pos">현재 (PRESENT)</div>
+                <div class="card-num">XXI</div>
+                <div class="card-symbol">🔮</div>
+                <div class="card-name">THE WORLD</div>
+            </div>
+            <div class="card">
+                <div class="card-pos">미래 (FUTURE)</div>
+                <div class="card-num">XIX</div>
+                <div class="card-symbol">☀️</div>
+                <div class="card-name">THE SUN</div>
+            </div>
+        </div>
+
+        <div id="reading" class="reading-box">오라클이 운명의 실타래를 풀고 있습니다... 잠시만 기다려 주세요.</div>
+        
+        <button class="btn" onclick="location.reload()">다시 리딩하기</button>
+    </div>
+
+    <script>
+        async function getReading() {
+            const readingBox = document.getElementById('reading');
+            try {
+                // 상대 경로 사용
+                const response = await fetch('/.netlify/functions/tarot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) throw new Error('서버 응답 오류');
+                
+                const data = await response.json();
+                readingBox.innerText = data.reading;
+            } catch (error) {
+                console.error('Error:', error);
+                readingBox.innerText = "오라클이 일시적으로 침묵합니다... 다시 시도해 주세요.";
+            }
+        }
+
+        window.onload = getReading;
+    </script>
+</body>
+</html>
