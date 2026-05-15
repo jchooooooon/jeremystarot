@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARCANA · AI Tarot Oracle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #06060f;
+  --surface: #0e0e1e;
+  --card-bg: #11112a;
+  --card-border: #252550;
+  --gold: #c9a84c;
+  --gold-dim: rgba(201,168,76,0.35);
+  --gold-glow: rgba(201,168,76,0.18);
+  --text: #e4ddd0;
+  --muted: #6a6055;
+  --purple: #8b7aee;
+  --font-display: 'Cinzel', 'Palatino Linotype', Georgia, serif;
+  --font-body: 'EB Garamond', Georgia, serif;
+}
+
+html { font-size: 18px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.7;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#stars-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.screen {
+  display: none;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1.5rem 4rem;
+  position: relative;
+  z-index: 1;
+}
+.screen.active { display: flex; }
+
+/* ─── SHARED ─────────────────────────────── */
+.gold-divider {
+  width: 180px;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold), transparent);
+  margin: 2rem auto;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.8rem 2.8rem;
+  background: transparent;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.3s, box-shadow 0.3s;
+  border-radius: 2px;
+}
+.btn:hover {
+  background: rgba(201,168,76,0.08);
+  box-shadow: 0 0 32px var(--gold-glow);
+}
+.btn:disabled { opacity: 0.35; cursor: default; }
+
+.screen-heading {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 3vw, 1.4rem);
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  color: var(--gold);
+  text-align: center;
+  margin-top: 3rem;
+}
+.screen-sub {
+  font-size: 0.85rem;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 0.5rem;
+  margin-bottom: 2.5rem;
+}
+
+/* ─── SCREEN 1: QUESTION ─────────────────── */
+.title-group { text-align: center; margin-top: 5vh; }
+.main-title {
+  font-family: var(--font-display);
+  font-size: clamp(4.5rem, 13vw, 10rem);
+  font-weight: 900;
+  letter-spacing: 0.4em;
+  color: var(--gold);
+  text-shadow: 0 0 80px rgba(201,168,76,0.25), 0 0 160px rgba(201,168,76,0.08);
+  line-height: 1;
+  animation: title-fade 1.4s ease forwards;
+}
+@keyframes title-fade {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.main-subtitle {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.6em;
+  color: var(--muted);
+  margin-top: 0.6rem;
+  text-transform: uppercase;
+}
+
+.eye-orb {
+  width: 110px; height: 110px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 2rem auto;
+  animation: orb-pulse 4s ease-in-out infinite;
+}
+@keyframes orb-pulse {
+  0%,100% { box-shadow: 0 0 20px var(--gold-glow); }
+  50%      { box-shadow: 0 0 50px rgba(201,168,76,0.3), 0 0 100px rgba(201,168,76,0.08); }
+}
+
+.q-section { width: 100%; max-width: 560px; text-align: center; }
+.q-label {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.35em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+.q-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 3px;
+  padding: 1rem 1.4rem;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  outline: none;
+  transition: border-color 0.3s;
+  resize: none;
+}
+.q-input:focus { border-color: var(--gold); }
+.q-input::placeholder { color: var(--muted); }
+
+/* ─── SCREEN 2: CARD SELECTION ───────────── */
+.selection-counter {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.3em;
+  color: var(--purple);
+  text-align: center;
+  margin-bottom: 2rem;
+  transition: color 0.3s;
+}
+
+.cards-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  max-width: 780px;
+  margin-bottom: 2rem;
+}
+
+.card-shell {
+  width: 76px;
+  height: 126px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  cursor: pointer;
+  transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card-shell:hover {
+  border-color: var(--gold-dim);
+  transform: translateY(-5px);
+  box-shadow: 0 8px 28px rgba(201,168,76,0.14);
+}
+.card-shell.chosen {
+  border-color: var(--gold);
+  transform: translateY(-8px);
+  box-shadow: 0 0 18px var(--gold-glow), 0 12px 36px rgba(201,168,76,0.12);
+}
+.card-shell.disabled { opacity: 0.4; cursor: default; transform: none; }
+
+/* ─── SCREEN 3: READING ──────────────────── */
+.reading-q {
+  font-style: italic;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+.spread-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 2.5rem 0;
+}
+.card-pos { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; }
+.pos-label {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.35em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.face-card {
+  width: 118px;
+  height: 196px;
+  border-radius: 8px;
+  border: 1px solid var(--gold-dim);
+  background: var(--card-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px;
+  box-shadow: 0 0 40px rgba(201,168,76,0.1), inset 0 0 30px rgba(201,168,76,0.03);
+  animation: card-appear 0.8s ease forwards;
+}
+@keyframes card-appear {
+  from { opacity: 0; transform: rotateY(90deg) scale(0.9); }
+  to   { opacity: 1; transform: rotateY(0deg) scale(1); }
+}
+
+.face-roman {
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  color: var(--muted);
+  text-align: center;
+}
+.face-symbol { flex: 1; display: flex; align-items: center; justify-content: center; }
+.face-name {
+  font-family: var(--font-display);
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  text-align: center;
+  line-height: 1.4;
+}
+.face-rev {
+  font-size: 0.45rem;
+  color: var(--purple);
+  letter-spacing: 0.15em;
+  display: block;
+  margin-top: 3px;
+}
+
+.reading-box {
+  width: 100%;
+  max-width: 680px;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 2.5rem;
+  font-size: 1.05rem;
+  line-height: 1.95;
+  min-height: 200px;
+}
+
+.loading-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem 0;
+}
+.pulse {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--gold);
+  animation: ring-pulse 1.6s ease-in-out infinite;
+}
+.pulse-inner {
+  position: absolute;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: 1px solid rgba(201,168,76,0.3);
+  animation: ring-pulse 1.6s ease-in-out infinite 0.4s;
+}
+@keyframes ring-pulse {
+  0%,100% { transform: scale(1); opacity: 0.8; }
+  50%      { transform: scale(1.5); opacity: 0; }
+}
+.loading-text {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  letter-spacing: 0.35em;
+  color: var(--muted);
+}
+#reading-text { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<canvas id="stars-canvas"></canvas>
+
+<!-- ──── SCREEN 1: QUESTION ──────────────── -->
+<div id="s1" class="screen active">
+  <div class="title-group">
+    <div class="main-title">ARCANA</div>
+    <div class="main-subtitle">AI · Tarot · Oracle</div>
+  </div>
+
+  <div class="eye-orb">
+    <svg width="58" height="58" viewBox="0 0 58 58" fill="none">
+      <ellipse cx="29" cy="29" rx="22" ry="13" stroke="rgba(201,168,76,0.55)" stroke-width="0.8"/>
+      <circle cx="29" cy="29" r="8" stroke="rgba(201,168,76,0.7)" stroke-width="0.8"/>
+      <circle cx="29" cy="29" r="3.5" fill="rgba(201,168,76,0.9)"/>
+      <line x1="29" y1="5" x2="29" y2="11" stroke="rgba(201,168,76,0.35)" stroke-width="0.8"/>
+      <line x1="29" y1="47" x2="29" y2="53" stroke="rgba(201,168,76,0.35)" stroke-width="0.8"/>
+      <line x1="5" y1="29" x2="11" y2="29" stroke="rgba(201,168,76,0.35)" stroke-width="0.8"/>
+      <line x1="47" y1="29" x2="53" y2="29" stroke="rgba(201,168,76,0.35)" stroke-width="0.8"/>
+      <line x1="10" y1="10" x2="15" y2="15" stroke="rgba(201,168,76,0.2)" stroke-width="0.8"/>
+      <line x1="48" y1="10" x2="43" y2="15" stroke="rgba(201,168,76,0.2)" stroke-width="0.8"/>
+      <line x1="10" y1="48" x2="15" y2="43" stroke="rgba(201,168,76,0.2)" stroke-width="0.8"/>
+      <line x1="48" y1="48" x2="43" y2="43" stroke="rgba(201,168,76,0.2)" stroke-width="0.8"/>
+    </svg>
+  </div>
+
+  <div class="gold-divider"></div>
+
+  <div class="q-section">
+    <div class="q-label">무엇이 알고 싶으신가요?</div>
+    <textarea class="q-input" id="q-input" rows="3"
+      placeholder="질문을 적어주세요. 비워두면 일반적인 리딩을 해드립니다..."></textarea>
+    <div style="margin-top:1.8rem; text-align:center;">
+      <button class="btn" id="begin-btn">리딩 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- ──── SCREEN 2: CARD SELECTION ─────────── -->
+<div id="s2" class="screen">
+  <div class="screen-heading">메이저 아르카나</div>
+  <div class="screen-sub">깊게 숨을 들이쉬고, 질문에 집중하세요 &middot; 카드 3장을 선택하세요</div>
+  <div class="selection-counter" id="sel-count">0 / 3 선택됨</div>
+  <div class="cards-grid" id="cards-grid"></div>
+  <button class="btn" id="reveal-btn" style="display:none; margin-top:1rem;">리딩 보기</button>
+</div>
+
+<!-- ──── SCREEN 3: READING ──────────────── -->
+<div id="s3" class="screen">
+  <div class="screen-heading">당신의 타로 리딩</div>
+  <div class="reading-q" id="r-question"></div>
+  <div class="spread-row" id="spread-row"></div>
+  <div class="reading-box" id="reading-box">
+    <div class="loading-wrap" id="loading-wrap">
+      <div style="position:relative; width:56px; height:56px;">
+        <div class="pulse"></div>
+        <div class="pulse-inner" style="position:absolute; top:0; left:0;"></div>
+      </div>
+      <div class="loading-text">오라클이 읽고 있습니다...</div>
+    </div>
+    <div id="reading-text" style="display:none;"></div>
+  </div>
+  <div style="margin-top:2.5rem; text-align:center;">
+    <button class="btn" id="again-btn" style="display:none;">다시 리딩하기</button>
+  </div>
+</div>
+
+<script>
+// ═══════════ STARS ═══════════════════════════
+const cv = document.getElementById('stars-canvas');
+const cx = cv.getContext('2d');
+let stars = [];
+
+function initStars() {
+  cv.width = innerWidth; cv.height = innerHeight;
+  stars = Array.from({length:220}, () => ({
+    x: Math.random()*cv.width, y: Math.random()*cv.height,
+    r: Math.random()*1.1+0.2, ph: Math.random()*Math.PI*2, sp: Math.random()*.004+.002
+  }));
+}
+function animStars() {
+  cx.clearRect(0,0,cv.width,cv.height);
+  stars.forEach(s => {
+    s.ph += s.sp;
+    const a = (Math.sin(s.ph)+1)/2*.65+.1;
+    cx.beginPath(); cx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    cx.fillStyle=`rgba(218,200,158,${a})`; cx.fill();
+  });
+  requestAnimationFrame(animStars);
+}
+initStars(); animStars();
+addEventListener('resize', initStars);
+
+// ═══════════ CARD DATA ═══════════════════════
+const C = '#c9a84c';
+const sym = (paths) => `<svg width="52" height="62" viewBox="0 0 52 62" fill="none" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
+
+const DECK = [
+  { num:'0', name:'The Fool',
+    svg: sym(`<circle cx="26" cy="18" r="8" stroke="${C}" stroke-width=".8"/><line x1="26" y1="26" x2="26" y2="46" stroke="${C}" stroke-width=".8"/><line x1="26" y1="34" x2="16" y2="42" stroke="${C}" stroke-width=".8"/><line x1="26" y1="34" x2="36" y2="42" stroke="${C}" stroke-width=".8"/><line x1="26" y1="46" x2="19" y2="58" stroke="${C}" stroke-width=".8"/><line x1="26" y1="46" x2="33" y2="58" stroke="${C}" stroke-width=".8"/><circle cx="38" cy="10" r="3" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.15)"/>`),
+    up:'새로운 시작, 자유, 순수', rev:'무모함, 경솔함, 위험' },
+  { num:'I', name:'The Magician',
+    svg: sym(`<line x1="26" y1="8" x2="26" y2="52" stroke="${C}" stroke-width=".8"/><path d="M8 22 Q26 14 44 22" stroke="${C}" stroke-width=".8" fill="none"/><path d="M8 22 Q26 30 44 22" stroke="${C}" stroke-width=".8" fill="none" stroke-dasharray="2,2"/><circle cx="26" cy="55" r="5" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.1)"/><text x="26" y="57.5" text-anchor="middle" font-size="8" fill="${C}" font-family="serif">∞</text><circle cx="26" cy="10" r="4" fill="rgba(201,168,76,.4)"/>`),
+    up:'현현, 의지, 능력', rev:'조작, 재능 낭비, 혼란' },
+  { num:'II', name:'The High Priestess',
+    svg: sym(`<rect x="10" y="10" width="7" height="40" stroke="${C}" stroke-width=".8"/><rect x="35" y="10" width="7" height="40" stroke="${C}" stroke-width=".8"/><path d="M17 32 Q26 24 35 32" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.08)"/><circle cx="26" cy="20" r="6" stroke="${C}" stroke-width=".8"/><path d="M20 20 Q26 13 32 20" fill="rgba(201,168,76,.2)" stroke="${C}" stroke-width=".8"/>`),
+    up:'직관, 신성한 지혜, 내면의 목소리', rev:'비밀, 직관 차단, 은둔' },
+  { num:'III', name:'The Empress',
+    svg: sym(`<circle cx="26" cy="22" r="11" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.06)"/><line x1="26" y1="11" x2="26" y2="7" stroke="${C}" stroke-width=".8"/><line x1="26" y1="33" x2="26" y2="52" stroke="${C}" stroke-width=".8"/><line x1="15" y1="42" x2="37" y2="42" stroke="${C}" stroke-width=".8"/><circle cx="26" cy="55" r="4" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.1)"/>`),
+    up:'풍요, 자연, 모성, 아름다움', rev:'창의적 막힘, 의존, 공허' },
+  { num:'IV', name:'The Emperor',
+    svg: sym(`<rect x="13" y="13" width="26" height="26" stroke="${C}" stroke-width=".8" transform="rotate(45 26 26)"/><line x1="26" y1="4" x2="26" y2="9" stroke="${C}" stroke-width="1.5"/><line x1="48" y1="26" x2="43" y2="26" stroke="${C}" stroke-width="1.5"/><line x1="4" y1="26" x2="9" y2="26" stroke="${C}" stroke-width="1.5"/><line x1="26" y1="48" x2="26" y2="58" stroke="${C}" stroke-width="1.5"/><circle cx="26" cy="26" r="5" fill="rgba(201,168,76,.45)"/>`),
+    up:'권위, 구조, 아버지', rev:'지배, 경직, 과도한 통제' },
+  { num:'V', name:'The Hierophant',
+    svg: sym(`<line x1="26" y1="5" x2="26" y2="56" stroke="${C}" stroke-width=".8"/><line x1="14" y1="18" x2="38" y2="18" stroke="${C}" stroke-width=".8"/><line x1="14" y1="28" x2="38" y2="28" stroke="${C}" stroke-width=".8"/><circle cx="26" cy="10" r="5" stroke="${C}" stroke-width=".8"/><path d="M21 5 L26 0 L31 5" fill="rgba(201,168,76,.3)" stroke="${C}" stroke-width=".8"/>`),
+    up:'전통, 영적 지혜, 제도', rev:'자유, 반항, 개인적 신념' },
+  { num:'VI', name:'The Lovers',
+    svg: sym(`<circle cx="16" cy="36" r="10" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.04)"/><circle cx="36" cy="36" r="10" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.04)"/><path d="M26 16 Q23 8 18 10 Q13 12 15 18 Q17 24 26 30 Q35 24 37 18 Q39 12 34 10 Q29 8 26 16Z" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.15)"/>`),
+    up:'사랑, 조화, 선택, 관계', rev:'불화, 가치 불일치, 자기 사랑 부족' },
+  { num:'VII', name:'The Chariot',
+    svg: sym(`<rect x="12" y="8" width="28" height="24" stroke="${C}" stroke-width=".8" rx="2"/><line x1="12" y1="32" x2="4" y2="48" stroke="${C}" stroke-width=".8"/><line x1="40" y1="32" x2="48" y2="48" stroke="${C}" stroke-width=".8"/><circle cx="14" cy="55" r="7" stroke="${C}" stroke-width=".8"/><circle cx="38" cy="55" r="7" stroke="${C}" stroke-width=".8"/><circle cx="14" cy="55" r="2" fill="rgba(201,168,76,.5)"/><circle cx="38" cy="55" r="2" fill="rgba(201,168,76,.5)"/>`),
+    up:'의지, 통제, 승리, 결단', rev:'자기통제 부족, 방향 상실' },
+  { num:'VIII', name:'Strength',
+    svg: sym(`<path d="M8 35 Q8 18 26 16 Q44 18 44 35 Q44 50 26 52 Q8 50 8 35Z" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.04)"/><text x="26" y="40" text-anchor="middle" font-size="14" fill="${C}" font-family="serif">∞</text><circle cx="26" cy="10" r="6" stroke="${C}" stroke-width=".8"/>`),
+    up:'용기, 내면의 힘, 인내', rev:'자기 의심, 나약함, 두려움' },
+  { num:'IX', name:'The Hermit',
+    svg: sym(`<line x1="32" y1="6" x2="22" y2="58" stroke="${C}" stroke-width=".8"/><rect x="23" y="12" width="12" height="18" rx="6" stroke="${C}" stroke-width=".8"/><circle cx="29" cy="21" r="3" fill="rgba(201,168,76,.5)"/><polygon points="30,6 34,6 32,2" fill="rgba(201,168,76,.4)" stroke="${C}" stroke-width=".8"/><line x1="8" y1="42" x2="28" y2="42" stroke="${C}" stroke-width=".8"/><line x1="8" y1="48" x2="24" y2="48" stroke="${C}" stroke-width=".8"/>`),
+    up:'내면 탐구, 고독, 지혜', rev:'고립, 외로움, 길을 잃음' },
+  { num:'X', name:'Wheel of Fortune',
+    svg: sym(`<circle cx="26" cy="30" r="21" stroke="${C}" stroke-width=".8"/><circle cx="26" cy="30" r="13" stroke="${C}" stroke-width=".8"/><circle cx="26" cy="30" r="4" fill="rgba(201,168,76,.5)" stroke="${C}" stroke-width=".8"/><line x1="26" y1="9" x2="26" y2="17" stroke="${C}" stroke-width="1"/><line x1="26" y1="43" x2="26" y2="51" stroke="${C}" stroke-width="1"/><line x1="5" y1="30" x2="13" y2="30" stroke="${C}" stroke-width="1"/><line x1="39" y1="30" x2="47" y2="30" stroke="${C}" stroke-width="1"/><line x1="11" y1="15" x2="17" y2="21" stroke="${C}" stroke-width="1"/><line x1="35" y1="39" x2="41" y2="45" stroke="${C}" stroke-width="1"/><line x1="41" y1="15" x2="35" y2="21" stroke="${C}" stroke-width="1"/><line x1="17" y1="39" x2="11" y2="45" stroke="${C}" stroke-width="1"/>`),
+    up:'행운, 운명, 전환점', rev:'불운, 변화 저항, 악순환' },
+  { num:'XI', name:'Justice',
+    svg: sym(`<line x1="26" y1="6" x2="26" y2="56" stroke="${C}" stroke-width=".8"/><line x1="10" y1="22" x2="42" y2="22" stroke="${C}" stroke-width=".8"/><rect x="5" y="30" width="14" height="14" stroke="${C}" stroke-width=".8" rx="1"/><rect x="33" y="30" width="14" height="14" stroke="${C}" stroke-width=".8" rx="1"/><line x1="10" y1="22" x2="12" y2="30" stroke="${C}" stroke-width=".8"/><line x1="42" y1="22" x2="40" y2="30" stroke="${C}" stroke-width=".8"/><path d="M23 6 L26 2 L29 6" fill="rgba(201,168,76,.4)" stroke="${C}" stroke-width=".8"/>`),
+    up:'정의, 공정, 진실', rev:'불공정, 책임 회피, 부정직' },
+  { num:'XII', name:'The Hanged Man',
+    svg: sym(`<line x1="14" y1="4" x2="38" y2="4" stroke="${C}" stroke-width=".8"/><line x1="14" y1="4" x2="14" y2="18" stroke="${C}" stroke-width=".8"/><line x1="26" y1="4" x2="26" y2="16" stroke="${C}" stroke-width=".8"/><circle cx="26" cy="22" r="6" stroke="${C}" stroke-width=".8"/><line x1="26" y1="28" x2="26" y2="46" stroke="${C}" stroke-width=".8"/><line x1="26" y1="36" x2="16" y2="26" stroke="${C}" stroke-width=".8"/><line x1="26" y1="36" x2="36" y2="26" stroke="${C}" stroke-width=".8"/><line x1="26" y1="46" x2="19" y2="57" stroke="${C}" stroke-width=".8"/><line x1="26" y1="46" x2="33" y2="57" stroke="${C}" stroke-width=".8"/>`),
+    up:'멈춤, 내려놓음, 새로운 시각', rev:'지연, 저항, 우유부단' },
+  { num:'XIII', name:'Death',
+    svg: sym(`<circle cx="26" cy="20" r="10" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.04)"/><circle cx="22" cy="17" r="2" fill="rgba(201,168,76,.6)"/><circle cx="30" cy="17" r="2" fill="rgba(201,168,76,.6)"/><path d="M20 25 Q26 29 32 25" stroke="${C}" stroke-width=".8" fill="none"/><path d="M20 30 Q14 46 8 58" stroke="${C}" stroke-width=".8"/><path d="M32 30 Q38 46 44 58" stroke="${C}" stroke-width=".8"/><path d="M10 48 Q26 43 42 48" stroke="${C}" stroke-width=".8" fill="none"/>`),
+    up:'변화, 전환, 끝과 시작', rev:'변화 거부, 내면 정화' },
+  { num:'XIV', name:'Temperance',
+    svg: sym(`<ellipse cx="14" cy="38" rx="8" ry="13" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.04)"/><ellipse cx="38" cy="38" rx="8" ry="13" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.04)"/><path d="M14 25 Q26 16 38 25" stroke="${C}" stroke-width=".8" stroke-dasharray="2,2" fill="none"/><circle cx="26" cy="12" r="6" stroke="${C}" stroke-width=".8"/>`),
+    up:'균형, 절제, 인내, 조화', rev:'불균형, 과잉, 재조정 필요' },
+  { num:'XV', name:'The Devil',
+    svg: sym(`<polygon points="26,4 14,26 38,26" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.04)"/><circle cx="26" cy="38" r="16" stroke="${C}" stroke-width=".8"/><line x1="18" y1="4" x2="14" y2="0" stroke="${C}" stroke-width=".8"/><line x1="34" y1="4" x2="38" y2="0" stroke="${C}" stroke-width=".8"/><circle cx="20" cy="34" r="2.5" fill="rgba(201,168,76,.5)"/><circle cx="32" cy="34" r="2.5" fill="rgba(201,168,76,.5)"/><path d="M20 42 Q26 47 32 42" stroke="${C}" stroke-width=".8" fill="none"/>`),
+    up:'그림자, 집착, 유혹, 욕망', rev:'해방, 제한 극복, 성찰' },
+  { num:'XVI', name:'The Tower',
+    svg: sym(`<rect x="16" y="20" width="20" height="36" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.03)"/><path d="M16 20 L26 8 L36 20" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.1)"/><rect x="22" y="38" width="8" height="12" stroke="${C}" stroke-width=".8"/><path d="M4 10 L20 24" stroke="${C}" stroke-width="1.8" stroke-linecap="round"/><path d="M1 20 L13 26" stroke="${C}" stroke-width=".8"/><circle cx="8" cy="6" r="3" fill="rgba(201,168,76,.3)" stroke="${C}" stroke-width=".8"/>`),
+    up:'급변, 혼돈, 계시, 깨달음', rev:'변화 회피, 재앙 모면' },
+  { num:'XVII', name:'The Star',
+    svg: sym(`<polygon points="26,4 30,18 44,18 33,27 37,42 26,33 15,42 19,27 8,18 22,18" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.15)"/><circle cx="26" cy="55" r="4" fill="rgba(201,168,76,.2)" stroke="${C}" stroke-width=".8"/><circle cx="10" cy="52" r="3" fill="rgba(201,168,76,.12)" stroke="${C}" stroke-width=".5"/><circle cx="42" cy="52" r="3" fill="rgba(201,168,76,.12)" stroke="${C}" stroke-width=".5"/>`),
+    up:'희망, 믿음, 영적 갱신', rev:'믿음 부족, 절망, 단절' },
+  { num:'XVIII', name:'The Moon',
+    svg: sym(`<path d="M32 7 Q16 15 16 31 Q16 47 32 54 Q10 51 8 31 Q8 11 32 7Z" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.1)"/><circle cx="22" cy="20" r="2" fill="rgba(201,168,76,.5)"/><circle cx="18" cy="34" r="1.5" fill="rgba(201,168,76,.35)"/><circle cx="25" cy="45" r="1" fill="rgba(201,168,76,.3)"/><circle cx="42" cy="14" r="4" stroke="${C}" stroke-width=".5" fill="rgba(201,168,76,.15)"/><circle cx="45" cy="38" r="2.5" stroke="${C}" stroke-width=".5" fill="rgba(201,168,76,.1)"/>`),
+    up:'환상, 무의식, 두려움, 직관', rev:'두려움 해소, 억압된 감정' },
+  { num:'XIX', name:'The Sun',
+    svg: sym(`<circle cx="26" cy="28" r="12" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.2)"/><circle cx="26" cy="28" r="5" fill="rgba(201,168,76,.6)"/><line x1="26" y1="4" x2="26" y2="12" stroke="${C}" stroke-width="1"/><line x1="26" y1="44" x2="26" y2="52" stroke="${C}" stroke-width="1"/><line x1="4" y1="28" x2="12" y2="28" stroke="${C}" stroke-width="1"/><line x1="40" y1="28" x2="48" y2="28" stroke="${C}" stroke-width="1"/><line x1="10" y1="10" x2="16" y2="16" stroke="${C}" stroke-width="1"/><line x1="36" y1="40" x2="42" y2="46" stroke="${C}" stroke-width="1"/><line x1="42" y1="10" x2="36" y2="16" stroke="${C}" stroke-width="1"/><line x1="16" y1="40" x2="10" y2="46" stroke="${C}" stroke-width="1"/>`),
+    up:'활력, 성공, 기쁨, 따뜻함', rev:'내면 아이, 과도한 낙관' },
+  { num:'XX', name:'Judgement',
+    svg: sym(`<circle cx="26" cy="12" r="8" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.05)"/><path d="M18 12 Q21 5 26 4 Q31 5 34 12" fill="rgba(201,168,76,.12)" stroke="${C}" stroke-width=".8"/><line x1="26" y1="4" x2="26" y2="0" stroke="${C}" stroke-width="1"/><path d="M16 20 Q10 32 8 44 Q17 47 26 47 Q35 47 44 44 Q42 32 36 20" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.04)"/><rect x="4" y="50" width="12" height="10" stroke="${C}" stroke-width=".8" rx="1"/><rect x="20" y="50" width="12" height="10" stroke="${C}" stroke-width=".8" rx="1"/><rect x="36" y="50" width="12" height="10" stroke="${C}" stroke-width=".8" rx="1"/>`),
+    up:'심판, 부활, 내면의 부름', rev:'자기 의심, 내면의 비판' },
+  { num:'XXI', name:'The World',
+    svg: sym(`<ellipse cx="26" cy="31" rx="16" ry="24" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.04)"/><ellipse cx="26" cy="31" rx="22" ry="28" stroke="${C}" stroke-width=".5" stroke-dasharray="3,2"/><circle cx="26" cy="31" r="8" stroke="${C}" stroke-width=".8" fill="rgba(201,168,76,.15)"/><circle cx="8" cy="12" r="3" fill="rgba(201,168,76,.2)" stroke="${C}" stroke-width=".5"/><circle cx="44" cy="12" r="3" fill="rgba(201,168,76,.2)" stroke="${C}" stroke-width=".5"/><circle cx="8" cy="50" r="3" fill="rgba(201,168,76,.2)" stroke="${C}" stroke-width=".5"/><circle cx="44" cy="50" r="3" fill="rgba(201,168,76,.2)" stroke="${C}" stroke-width=".5"/>`),
+    up:'완성, 성취, 통합, 여행', rev:'미완성, 지연, 마무리 회피' },
+];
+
+function cardBackSVG() {
+  return `<svg width="68" height="118" viewBox="0 0 68 118" fill="none"><rect x=".5" y=".5" width="67" height="117" rx="5" stroke="rgba(201,168,76,.25)" stroke-width=".5"/><rect x="5" y="5" width="58" height="108" rx="4" stroke="rgba(201,168,76,.12)" stroke-width=".5"/><polygon points="34,22 39,36 53,36 42,45 46,59 34,50 22,59 26,45 15,36 29,36" stroke="rgba(201,168,76,.3)" stroke-width=".5" fill="rgba(201,168,76,.04)"/><circle cx="12" cy="11" r="1.5" fill="rgba(201,168,76,.2)"/><circle cx="56" cy="11" r="1.5" fill="rgba(201,168,76,.2)"/><circle cx="12" cy="107" r="1.5" fill="rgba(201,168,76,.2)"/><circle cx="56" cy="107" r="1.5" fill="rgba(201,168,76,.2)"/><line x1="18" y1="80" x2="50" y2="80" stroke="rgba(201,168,76,.18)" stroke-width=".5"/><line x1="22" y1="88" x2="46" y2="88" stroke="rgba(201,168,76,.12)" stroke-width=".5"/><line x1="26" y1="96" x2="42" y2="96" stroke="rgba(201,168,76,.08)" stroke-width=".5"/></svg>`;
+}
+
+// ═══════════ STATE ════════════════════════════
+let question = '';
+let chosen = [];
+let drawn = [];
+const positions = ['과거 (Past)', '현재 (Present)', '미래 (Future)'];
+
+// ═══════════ SCREENS ══════════════════════════
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  scrollTo(0, 0);
+}
+
+// ═══════════ SCREEN 1 ═════════════════════════
+document.getElementById('begin-btn').addEventListener('click', () => {
+  question = document.getElementById('q-input').value.trim();
+  buildGrid();
+  show('s2');
+});
+
+// ═══════════ SCREEN 2 ═════════════════════════
+function buildGrid() {
+  const grid = document.getElementById('cards-grid');
+  grid.innerHTML = '';
+  chosen = [];
+  updateCounter();
+
+  const shuffled = [...DECK].sort(() => Math.random() - 0.5);
+  shuffled.forEach(card => {
+    const el = document.createElement('div');
+    el.className = 'card-shell';
+    el.innerHTML = cardBackSVG();
+    el.addEventListener('click', () => pick(el, card));
+    grid.appendChild(el);
+  });
+  document.getElementById('reveal-btn').style.display = 'none';
+}
+
+function pick(el, card) {
+  if (el.classList.contains('chosen')) {
+    el.classList.remove('chosen');
+    chosen = chosen.filter(c => c !== card);
+    document.querySelectorAll('.card-shell.disabled').forEach(c => c.classList.remove('disabled'));
+  } else if (chosen.length < 3) {
+    el.classList.add('chosen');
+    chosen.push(card);
+    if (chosen.length === 3) {
+      document.querySelectorAll('.card-shell:not(.chosen)').forEach(c => c.classList.add('disabled'));
+    }
+  }
+  updateCounter();
+  document.getElementById('reveal-btn').style.display = chosen.length === 3 ? 'block' : 'none';
+}
+
+function updateCounter() {
+  document.getElementById('sel-count').textContent = `${chosen.length} / 3 선택됨`;
+}
+
+document.getElementById('reveal-btn').addEventListener('click', () => {
+  drawn = chosen.map(c => ({ ...c, reversed: Math.random() < 0.28 }));
+  buildReading();
+  show('s3');
+  fetchReading();
+});
+
+// ═══════════ SCREEN 3 ═════════════════════════
+function buildReading() {
+  document.getElementById('r-question').textContent = question ? `"${question}"` : '일반 리딩';
+  const row = document.getElementById('spread-row');
+  row.innerHTML = '';
+  drawn.forEach((card, i) => {
+    const div = document.createElement('div');
+    div.className = 'card-pos';
+    div.style.animationDelay = `${i * 0.2}s`;
+    div.innerHTML = `
+      <div class="pos-label">${positions[i]}</div>
+      <div class="face-card" style="${card.reversed ? 'transform:rotate(180deg)' : ''}">
+        <div class="face-roman">${card.num}</div>
+        <div class="face-symbol">${card.svg}</div>
+        <div>
+          <div class="face-name">${card.name}${card.reversed ? '<span class="face-rev" style="transform:rotate(180deg);display:block">Reversed</span>' : ''}</div>
+        </div>
+      </div>`;
+    row.appendChild(div);
+  });
+  document.getElementById('loading-wrap').style.display = 'flex';
+  document.getElementById('reading-text').style.display = 'none';
+  document.getElementById('again-btn').style.display = 'none';
+}
+
+async function fetchReading() {
+  const cardLines = drawn.map((c, i) =>
+    `${positions[i]}: ${c.name} (${c.reversed ? `Reversed — ${c.rev}` : `Upright — ${c.up}`})`
+  ).join('\n');
+
+  const userMsg = question
+    ? `질문: "${question}"\n\n카드 배열:\n${cardLines}\n\n이 세 장의 카드로 질문에 대한 신비롭고 통찰력 있는 타로 리딩을 한국어로 해주세요. 시적이고 개인적인 문체로, 약 300자 내외로 작성해주세요.`
+    : `일반 리딩을 요청합니다.\n\n카드 배열:\n${cardLines}\n\n과거·현재·미래 3장의 카드를 엮어 신비롭고 통찰력 있는 타로 리딩을 한국어로 해주세요. 시적이고 깊이 있는 문체로, 약 300자 내외로 작성해주세요.`;
+
+  try {
+    const res = await fetch('/.netlify/functions/tarot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: '당신은 고대의 지혜를 지닌 신비로운 타로 해석자입니다. 시적이고 깊이 있는 언어로, 질문자의 마음에 직접 와닿는 개인적인 리딩을 제공하세요. 각 카드의 의미를 자연스럽게 엮어 하나의 이야기처럼 전달하세요.',
+        messages: [{ role: 'user', content: userMsg }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content[0].text;
+    document.getElementById('loading-wrap').style.display = 'none';
+    const rt = document.getElementById('reading-text');
+    rt.style.display = 'block';
+    // typewriter effect
+    let i = 0;
+    rt.textContent = '';
+    function type() {
+      if (i < text.length) {
+        rt.textContent += text[i++];
+        setTimeout(type, 18);
+      } else {
+        document.getElementById('again-btn').style.display = 'inline-block';
+      }
+    }
+    type();
+  } catch (e) {
+    document.getElementById('loading-wrap').style.display = 'none';
+    document.getElementById('reading-text').textContent = '오라클이 일시적으로 침묵합니다... 다시 시도해 주세요.';
+    document.getElementById('reading-text').style.display = 'block';
+    document.getElementById('again-btn').style.display = 'inline-block';
+  }
+}
+
+document.getElementById('again-btn').addEventListener('click', () => {
+  document.getElementById('q-input').value = '';
+  show('s1');
+});
+</script>
+</body>
+</html>
