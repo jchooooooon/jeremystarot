@@ -133,6 +133,14 @@
   .preview-controls { display: flex; gap: 8px; margin-bottom: 12px; }
   .preview-status { font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; min-height: 1.2em; }
 
+  .ai-caption-box {
+    background: #12141a; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px; margin-bottom: 16px;
+  }
+  .ai-caption-box .field input[type=text] {
+    background: #0c0e12; border: 1px solid var(--border); color: var(--text);
+    padding: 6px 8px; border-radius: 6px; font-size: 0.85rem;
+  }
   .empty-hint { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 24px 0; }
   code.small { font-size: 0.72rem; background: #0c0e12; padding: 1px 5px; border-radius: 4px; }
 </style>
@@ -164,6 +172,23 @@
     <div class="upload-box" id="uploadBox">
       <div>📁 클릭하거나 여러 개의 영상 클립을 드래그해서 올려주세요 (업로드 순서 = 편집 순서)</div>
       <input type="file" id="fileInput" accept="video/*" multiple>
+    </div>
+
+    <div class="ai-caption-box">
+      <div class="settings-row" style="margin-bottom:10px;">
+        <div class="field" style="flex:1 1 200px;">
+          <label>주제</label>
+          <input type="text" id="aiTopic" placeholder="예: 김치볶음밥 만들기" style="width:100%;">
+        </div>
+        <div class="field" style="flex:1 1 200px;">
+          <label>톤/분위기</label>
+          <input type="text" id="aiTone" placeholder="예: 친근하고 담백하게" style="width:100%;">
+        </div>
+        <div class="field" style="justify-content:flex-end;">
+          <button class="secondary" id="aiGenerateBtn">✨ AI 캡션 초안 생성 (Claude)</button>
+        </div>
+      </div>
+      <div class="preview-status" id="aiStatus"></div>
     </div>
 
     <div id="clipList"></div>
@@ -209,6 +234,10 @@
   const playAllBtn = document.getElementById('playAllBtn');
   const stopBtn = document.getElementById('stopBtn');
   const exportBtn = document.getElementById('exportBtn');
+  const aiGenerateBtn = document.getElementById('aiGenerateBtn');
+  const aiTopicInput = document.getElementById('aiTopic');
+  const aiToneInput = document.getElementById('aiTone');
+  const aiStatus = document.getElementById('aiStatus');
 
   uploadBox.addEventListener('click', () => fileInput.click());
   uploadBox.addEventListener('dragover', e => { e.preventDefault(); });
@@ -537,6 +566,34 @@
       previewVideo.addEventListener('ended', onEnded, { once: true });
     });
   }
+
+  // ---- AI caption drafts via Claude (Netlify function) ----
+  aiGenerateBtn.addEventListener('click', async () => {
+    if (!clips.length) { aiStatus.textContent = '먼저 클립을 업로드해주세요.'; return; }
+    aiGenerateBtn.disabled = true;
+    aiStatus.textContent = `Claude에게 캡션 ${clips.length}개 요청 중...`;
+    try {
+      const res = await fetch('/.netlify/functions/generate-captions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: aiTopicInput.value.trim(),
+          tone: aiToneInput.value.trim(),
+          count: clips.length,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+      const data = await res.json();
+      data.captions.forEach((c, i) => { if (clips[i]) clips[i].caption = c; });
+      render();
+      aiStatus.textContent = '캡션 초안 생성 완료. 마음에 안 들면 직접 수정하세요.';
+    } catch (err) {
+      console.error(err);
+      aiStatus.textContent = '생성 실패: ' + err.message + ' (배포된 Netlify 사이트에서만 동작합니다)';
+    } finally {
+      aiGenerateBtn.disabled = false;
+    }
+  });
 
   // ---- export segment/caption info as JSON (ffmpeg concat + ASS 스크립트의 입력으로 사용 가능) ----
   exportBtn.addEventListener('click', () => {
