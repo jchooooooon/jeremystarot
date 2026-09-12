@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>요리 영상 자동 캡션 툴 (테스트용)</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e38;
+    --text: #e8e8ec;
+    --muted: #8a8f9c;
+    --accent: #f0c14b;
+    --accent-dim: #7a6320;
+    --danger: #e05d5d;
+    --ok: #4caf7d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 20px; }
+  .layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .col-left { flex: 1 1 560px; min-width: 320px; }
+  .col-right { flex: 0 0 320px; min-width: 280px; position: sticky; top: 24px; }
+
+  .settings-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted); }
+  .field input[type=number] {
+    width: 90px; background: #0c0e12; border: 1px solid var(--border); color: var(--text);
+    padding: 6px 8px; border-radius: 6px; font-size: 0.9rem;
+  }
+
+  .upload-box {
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    color: var(--muted);
+    margin-bottom: 16px;
+    cursor: pointer;
+  }
+  .upload-box:hover { border-color: var(--accent-dim); color: var(--text); }
+  .upload-box input { display: none; }
+
+  .clip-card {
+    background: #12141a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 12px;
+  }
+  .clip-thumb {
+    width: 96px; height: 72px; border-radius: 6px; overflow: hidden;
+    background: #000; flex-shrink: 0; position: relative;
+  }
+  .clip-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .clip-thumb .badge {
+    position: absolute; top: 4px; left: 4px; background: rgba(0,0,0,0.65);
+    font-size: 0.65rem; padding: 1px 5px; border-radius: 4px;
+  }
+  .clip-body { flex: 1; min-width: 0; }
+  .clip-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .clip-name { font-size: 0.8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .clip-actions button {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.9rem; padding: 2px 6px;
+  }
+  .clip-actions button:hover { color: var(--text); }
+  .clip-actions button.danger:hover { color: var(--danger); }
+
+  .timeline {
+    position: relative; height: 26px; background: #0c0e12; border-radius: 5px;
+    margin-bottom: 8px; overflow: hidden; border: 1px solid var(--border);
+  }
+  .timeline .motion-bar {
+    position: absolute; bottom: 0; height: 100%; background: linear-gradient(to top, #263042, transparent);
+  }
+  .timeline .segment {
+    position: absolute; top: 0; bottom: 0; background: rgba(240,193,75,0.35);
+    border: 1px solid var(--accent); cursor: grab; border-radius: 3px;
+  }
+  .timeline .segment:active { cursor: grabbing; }
+  .timeline.locked .segment { cursor: default; }
+  .timeline .status-text {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; color: var(--muted);
+  }
+
+  .clip-meta { font-size: 0.7rem; color: var(--muted); margin-bottom: 8px; }
+  .clip-meta b { color: var(--text); }
+
+  textarea.caption-input {
+    width: 100%; min-height: 44px; resize: vertical;
+    background: #0c0e12; border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 8px; font-size: 0.88rem; font-family: inherit;
+  }
+
+  button.primary {
+    background: var(--accent); color: #1a1200; border: none; border-radius: 6px;
+    padding: 10px 16px; font-weight: 600; cursor: pointer; font-size: 0.9rem;
+  }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.secondary {
+    background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+    padding: 9px 14px; cursor: pointer; font-size: 0.85rem;
+  }
+  button.secondary:hover { border-color: var(--accent-dim); }
+
+  .preview-video-wrap {
+    width: 100%; aspect-ratio: 9/16; background: #000; border-radius: 8px; overflow: hidden;
+    position: relative; margin-bottom: 12px; max-height: 480px;
+  }
+  .preview-video-wrap video { width: 100%; height: 100%; object-fit: contain; }
+  .caption-overlay {
+    position: absolute; left: 0; right: 0; bottom: 8%; text-align: center;
+    color: #fff; font-size: 1.1rem; font-weight: 700; text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.9);
+    padding: 0 12px; word-break: keep-all; pointer-events: none;
+  }
+  .preview-controls { display: flex; gap: 8px; margin-bottom: 12px; }
+  .preview-status { font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; min-height: 1.2em; }
+
+  .empty-hint { color: var(--muted); font-size: 0.85rem; text-align: center; padding: 24px 0; }
+  code.small { font-size: 0.72rem; background: #0c0e12; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<h1>🎬 요리 영상 자동 캡션 툴 — 테스트용 프로토타입</h1>
+<div class="sub">
+  서버 없이 브라우저에서만 동작합니다. 클립마다 "움직임 점수" 기반으로 가장 쓸만한 구간을 자동으로 찾고,
+  그 구간에 캡션을 정확히 맞춰 미리보기합니다. 실제 영상 합성(ffmpeg concat + ASS 하드섭)은 다음 단계입니다.
+</div>
+
+<div class="layout">
+  <div class="panel col-left">
+    <div class="settings-row">
+      <div class="field">
+        <label>목표 클립 길이 (초)</label>
+        <input type="number" id="targetDuration" value="1.8" min="0.5" max="5" step="0.1">
+      </div>
+      <div class="field">
+        <label>흔들림 제외 민감도 (%)</label>
+        <input type="number" id="shakeThreshold" value="30" min="0" max="90" step="5">
+      </div>
+      <div class="field" style="justify-content:flex-end">
+        <button class="secondary" id="recalcBtn">전체 재계산</button>
+      </div>
+    </div>
+
+    <div class="upload-box" id="uploadBox">
+      <div>📁 클릭하거나 여러 개의 영상 클립을 드래그해서 올려주세요 (업로드 순서 = 편집 순서)</div>
+      <input type="file" id="fileInput" accept="video/*" multiple>
+    </div>
+
+    <div id="clipList"></div>
+    <div class="empty-hint" id="emptyHint">아직 업로드된 클립이 없습니다.</div>
+  </div>
+
+  <div class="panel col-right">
+    <h3 style="margin-top:0;font-size:1rem;">미리보기</h3>
+    <div class="preview-video-wrap">
+      <video id="previewVideo" muted playsinline></video>
+      <div class="caption-overlay" id="captionOverlay"></div>
+    </div>
+    <div class="preview-status" id="previewStatus"></div>
+    <div class="preview-controls">
+      <button class="primary" id="playAllBtn">▶ 전체 순서대로 재생</button>
+      <button class="secondary" id="stopBtn">■ 정지</button>
+    </div>
+    <button class="secondary" id="exportBtn" style="width:100%;">⬇ 구간+캡션 정보 JSON 내보내기</button>
+    <p style="font-size:0.72rem;color:var(--muted);margin-top:10px;line-height:1.5;">
+      내보낸 JSON은 각 클립의 확정 구간(<code class="small">segmentStart~segmentEnd</code>)과 캡션을 담고 있어,
+      이후 ffmpeg concat + ASS 자막 생성 스크립트의 입력으로 그대로 쓸 수 있습니다.
+    </p>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const clips = []; // { id, file, url, duration, canOverride, samples, segmentStart, segmentEnd, caption, thumb, analyzing }
+  let nextId = 1;
+
+  const fileInput = document.getElementById('fileInput');
+  const uploadBox = document.getElementById('uploadBox');
+  const clipListEl = document.getElementById('clipList');
+  const emptyHint = document.getElementById('emptyHint');
+  const targetDurationInput = document.getElementById('targetDuration');
+  const shakeThresholdInput = document.getElementById('shakeThreshold');
+  const recalcBtn = document.getElementById('recalcBtn');
+  const previewVideo = document.getElementById('previewVideo');
+  const captionOverlay = document.getElementById('captionOverlay');
+  const previewStatus = document.getElementById('previewStatus');
+  const playAllBtn = document.getElementById('playAllBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const exportBtn = document.getElementById('exportBtn');
+
+  uploadBox.addEventListener('click', () => fileInput.click());
+  uploadBox.addEventListener('dragover', e => { e.preventDefault(); });
+  uploadBox.addEventListener('drop', e => {
+    e.preventDefault();
+    handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+  function handleFiles(fileList) {
+    const files = Array.from(fileList || []).filter(f => f.type.startsWith('video/'));
+    files.forEach(addClip);
+    fileInput.value = '';
+  }
+
+  function targetDuration() {
+    return Math.max(0.3, parseFloat(targetDurationInput.value) || 1.8);
+  }
+  function shakeThresholdPct() {
+    return Math.max(0, Math.min(95, parseFloat(shakeThresholdInput.value) || 30)) / 100;
+  }
+
+  async function addClip(file) {
+    const clip = {
+      id: nextId++,
+      file,
+      url: URL.createObjectURL(file),
+      duration: 0,
+      samples: null,
+      segmentStart: 0,
+      segmentEnd: 0,
+      caption: '',
+      thumb: null,
+      analyzing: true,
+    };
+    clips.push(clip);
+    render();
+    await analyzeClip(clip);
+  }
+
+  // ---- core analysis: sample frames, compute per-sample motion + sharpness, pick best window ----
+  async function analyzeClip(clip) {
+    const video = document.createElement('video');
+    video.src = clip.url;
+    video.muted = true;
+    video.playsInline = true;
+    await new Promise((resolve, reject) => {
+      video.addEventListener('loadedmetadata', resolve, { once: true });
+      video.addEventListener('error', reject, { once: true });
+    });
+    clip.duration = video.duration;
+
+    const W = 80, H = 45;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    const sampleCount = Math.min(90, Math.max(6, Math.round(clip.duration / 0.12)));
+    const interval = clip.duration / sampleCount;
+    const samples = [];
+
+    for (let i = 0; i <= sampleCount; i++) {
+      const t = Math.min(clip.duration - 0.01, i * interval);
+      await seekTo(video, t);
+      ctx.drawImage(video, 0, 0, W, H);
+      const data = ctx.getImageData(0, 0, W, H).data;
+      const gray = new Float32Array(W * H);
+      for (let p = 0; p < W * H; p++) {
+        const o = p * 4;
+        gray[p] = 0.299 * data[o] + 0.587 * data[o + 1] + 0.114 * data[o + 2];
+      }
+      samples.push({ t, gray });
+    }
+
+    // thumbnail from mid-ish frame
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = 160; thumbCanvas.height = 120;
+    const tctx = thumbCanvas.getContext('2d');
+    await seekTo(video, Math.min(clip.duration - 0.01, clip.duration * 0.3));
+    tctx.drawImage(video, 0, 0, 160, 120);
+    clip.thumb = thumbCanvas.toDataURL('image/jpeg', 0.7);
+
+    // motion[i] = diff between sample i-1 and i ; sharpness[i] = gradient magnitude of sample i
+    const motion = [0];
+    const sharpness = [0];
+    for (let i = 0; i < samples.length; i++) {
+      const g = samples[i].gray;
+      let sharp = 0;
+      for (let y = 0; y < H - 1; y++) {
+        for (let x = 0; x < W - 1; x++) {
+          const idx = y * W + x;
+          sharp += Math.abs(g[idx + 1] - g[idx]) + Math.abs(g[idx + W] - g[idx]);
+        }
+      }
+      sharpness.push(sharp / (W * H));
+      if (i > 0) {
+        const gp = samples[i - 1].gray;
+        let diff = 0;
+        for (let p = 0; p < g.length; p++) diff += Math.abs(g[p] - gp[p]);
+        motion.push(diff / (W * H));
+      }
+    }
+    sharpness.shift();
+
+    clip.samples = { times: samples.map(s => s.t), motion, sharpness };
+    video.src = '';
+    pickBestWindow(clip);
+    clip.analyzing = false;
+    render();
+  }
+
+  function seekTo(video, t) {
+    return new Promise(resolve => {
+      const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
+      video.addEventListener('seeked', onSeeked);
+      video.currentTime = t;
+    });
+  }
+
+  // recompute best window from cached samples (fast, no re-decoding) using current target duration / threshold
+  function pickBestWindow(clip) {
+    const dur = targetDuration();
+    if (!clip.samples || clip.duration <= dur) {
+      clip.segmentStart = 0;
+      clip.segmentEnd = clip.duration;
+      clip.canOverride = false;
+      return;
+    }
+    clip.canOverride = true;
+    const { times, motion, sharpness } = clip.samples;
+    const maxSharp = Math.max(...sharpness, 1e-6);
+    const shakeCutoff = maxSharp * shakeThresholdPct();
+
+    let bestScore = -Infinity, bestStart = 0;
+    for (let i = 0; i < times.length; i++) {
+      const start = times[i];
+      if (start + dur > clip.duration) break;
+      // gather samples within [start, start+dur]
+      let motionSum = 0, sharpSum = 0, count = 0;
+      for (let j = i; j < times.length && times[j] <= start + dur; j++) {
+        motionSum += motion[j];
+        sharpSum += sharpness[j];
+        count++;
+      }
+      if (count === 0) continue;
+      const avgSharp = sharpSum / count;
+      const penalty = avgSharp < shakeCutoff ? 0.15 : 1.0;
+      const score = motionSum * penalty;
+      if (score > bestScore) { bestScore = score; bestStart = start; }
+    }
+    clip.segmentStart = bestStart;
+    clip.segmentEnd = Math.min(clip.duration, bestStart + dur);
+  }
+
+  function recalcAll() {
+    clips.forEach(c => { if (!c.analyzing) pickBestWindow(c); });
+    render();
+  }
+  recalcBtn.addEventListener('click', recalcAll);
+
+  // ---- rendering ----
+  function render() {
+    emptyHint.style.display = clips.length ? 'none' : 'block';
+    clipListEl.innerHTML = '';
+    clips.forEach((clip, idx) => clipListEl.appendChild(renderClipCard(clip, idx)));
+  }
+
+  function fmt(t) { return (Math.round(t * 100) / 100).toFixed(2) + 's'; }
+
+  function renderClipCard(clip, idx) {
+    const card = document.createElement('div');
+    card.className = 'clip-card';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'clip-thumb';
+    thumb.innerHTML = `<span class="badge">#${idx + 1}</span>` +
+      (clip.thumb ? `<img src="${clip.thumb}">` : '');
+    card.appendChild(thumb);
+
+    const body = document.createElement('div');
+    body.className = 'clip-body';
+
+    const top = document.createElement('div');
+    top.className = 'clip-top';
+    top.innerHTML = `<div class="clip-name" title="${clip.file.name}">${clip.file.name}</div>`;
+    const actions = document.createElement('div');
+    actions.className = 'clip-actions';
+    actions.innerHTML = `
+      <button data-act="up" title="위로">▲</button>
+      <button data-act="down" title="아래로">▼</button>
+      <button data-act="remove" class="danger" title="삭제">✕</button>`;
+    top.appendChild(actions);
+    body.appendChild(top);
+
+    const timeline = document.createElement('div');
+    timeline.className = 'timeline' + (clip.canOverride ? '' : ' locked');
+    if (clip.analyzing) {
+      timeline.innerHTML = `<div class="status-text">분석 중... (움직임 점수 계산)</div>`;
+    } else if (clip.samples) {
+      const maxMotion = Math.max(...clip.samples.motion, 1e-6);
+      clip.samples.times.forEach((t, i) => {
+        const bar = document.createElement('div');
+        bar.className = 'motion-bar';
+        const h = Math.min(1, clip.samples.motion[i] / maxMotion) * 100;
+        bar.style.left = (t / clip.duration * 100) + '%';
+        bar.style.width = (100 / clip.samples.times.length) + '%';
+        bar.style.height = h + '%';
+        timeline.appendChild(bar);
+      });
+      const seg = document.createElement('div');
+      seg.className = 'segment';
+      const segLeft = clip.segmentStart / clip.duration * 100;
+      const segWidth = (clip.segmentEnd - clip.segmentStart) / clip.duration * 100;
+      seg.style.left = segLeft + '%';
+      seg.style.width = segWidth + '%';
+      if (clip.canOverride) attachDrag(seg, timeline, clip);
+      timeline.appendChild(seg);
+    }
+    body.appendChild(timeline);
+
+    const meta = document.createElement('div');
+    meta.className = 'clip-meta';
+    meta.innerHTML = clip.analyzing
+      ? '분석 중...'
+      : `전체 <b>${fmt(clip.duration)}</b> · 선택 구간 <b>${fmt(clip.segmentStart)} ~ ${fmt(clip.segmentEnd)}</b>` +
+        (clip.canOverride ? ' · 드래그해서 구간 수동 조정 가능' : ' · 클립이 목표 길이보다 짧아 전체 사용');
+    body.appendChild(meta);
+
+    const caption = document.createElement('textarea');
+    caption.className = 'caption-input';
+    caption.placeholder = '이 클립에 표시할 캡션을 입력하세요...';
+    caption.value = clip.caption;
+    caption.addEventListener('input', () => { clip.caption = caption.value; });
+    body.appendChild(caption);
+
+    card.appendChild(body);
+
+    card.querySelector('[data-act="remove"]').addEventListener('click', () => {
+      const i = clips.indexOf(clip);
+      clips.splice(i, 1);
+      URL.revokeObjectURL(clip.url);
+      render();
+    });
+    card.querySelector('[data-act="up"]').addEventListener('click', () => moveClip(clip, -1));
+    card.querySelector('[data-act="down"]').addEventListener('click', () => moveClip(clip, 1));
+
+    return card;
+  }
+
+  function moveClip(clip, dir) {
+    const i = clips.indexOf(clip);
+    const j = i + dir;
+    if (j < 0 || j >= clips.length) return;
+    [clips[i], clips[j]] = [clips[j], clips[i]];
+    render();
+  }
+
+  function attachDrag(segEl, timelineEl, clip) {
+    segEl.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const rect = timelineEl.getBoundingClientRect();
+      const segDuration = clip.segmentEnd - clip.segmentStart;
+      const onMove = ev => {
+        const x = Math.min(rect.right, Math.max(rect.left, ev.clientX));
+        const ratio = (x - rect.left) / rect.width;
+        let start = ratio * clip.duration - segDuration / 2;
+        start = Math.max(0, Math.min(clip.duration - segDuration, start));
+        clip.segmentStart = start;
+        clip.segmentEnd = start + segDuration;
+        const left = start / clip.duration * 100;
+        segEl.style.left = left + '%';
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        render();
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  }
+
+  // recalc when settings change
+  targetDurationInput.addEventListener('change', recalcAll);
+  shakeThresholdInput.addEventListener('change', recalcAll);
+
+  // ---- sequential preview ----
+  let playToken = 0;
+  playAllBtn.addEventListener('click', playAll);
+  stopBtn.addEventListener('click', () => { playToken++; previewVideo.pause(); previewStatus.textContent = '정지됨'; captionOverlay.textContent = ''; });
+
+  async function playAll() {
+    const myToken = ++playToken;
+    const playable = clips.filter(c => !c.analyzing);
+    if (!playable.length) { previewStatus.textContent = '재생할 클립이 없습니다.'; return; }
+    for (let i = 0; i < playable.length; i++) {
+      if (myToken !== playToken) return;
+      const clip = playable[i];
+      previewStatus.textContent = `재생 중: #${clips.indexOf(clip) + 1} (${fmt(clip.segmentEnd - clip.segmentStart)})`;
+      captionOverlay.textContent = clip.caption || '';
+      await playSegment(clip, myToken);
+    }
+    if (myToken === playToken) { previewStatus.textContent = '재생 완료'; captionOverlay.textContent = ''; }
+  }
+
+  function playSegment(clip, token) {
+    return new Promise(resolve => {
+      previewVideo.src = clip.url;
+      const onLoaded = () => {
+        previewVideo.currentTime = clip.segmentStart;
+        previewVideo.play();
+      };
+      const onTimeUpdate = () => {
+        if (token !== playToken) { cleanup(); resolve(); return; }
+        if (previewVideo.currentTime >= clip.segmentEnd) { cleanup(); resolve(); }
+      };
+      const onEnded = () => { cleanup(); resolve(); };
+      function cleanup() {
+        previewVideo.removeEventListener('loadedmetadata', onLoaded);
+        previewVideo.removeEventListener('timeupdate', onTimeUpdate);
+        previewVideo.removeEventListener('ended', onEnded);
+        previewVideo.pause();
+      }
+      previewVideo.addEventListener('loadedmetadata', onLoaded, { once: true });
+      previewVideo.addEventListener('timeupdate', onTimeUpdate);
+      previewVideo.addEventListener('ended', onEnded, { once: true });
+    });
+  }
+
+  // ---- export segment/caption info as JSON (ffmpeg concat + ASS 스크립트의 입력으로 사용 가능) ----
+  exportBtn.addEventListener('click', () => {
+    let cursor = 0;
+    const data = clips.map((c, i) => {
+      const segDur = c.segmentEnd - c.segmentStart;
+      const entry = {
+        order: i + 1,
+        filename: c.file.name,
+        sourceSegment: { start: +c.segmentStart.toFixed(3), end: +c.segmentEnd.toFixed(3) },
+        finalTimeline: { start: +cursor.toFixed(3), end: +(cursor + segDur).toFixed(3) },
+        caption: c.caption,
+      };
+      cursor += segDur;
+      return entry;
+    });
+    const blob = new Blob([JSON.stringify({ targetDuration: targetDuration(), clips: data }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'clip-segments.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
