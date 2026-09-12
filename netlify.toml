@@ -3,3 +3,8 @@
 
 [functions]
   directory = "netlify/functions"
+
+[[headers]]
+  for = "/auto-caption-tool/vendor/ffmpeg/core/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"

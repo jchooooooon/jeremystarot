@@ -133,11 +133,20 @@
     padding: 10px 16px; font-weight: 600; cursor: pointer; font-size: 0.9rem;
   }
   button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
-  button.secondary {
+  button.secondary, a.secondary {
     background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px;
     padding: 9px 14px; cursor: pointer; font-size: 0.85rem;
+    text-decoration: none; text-align: center; box-sizing: border-box;
   }
-  button.secondary:hover { border-color: var(--accent-dim); }
+  button.secondary:hover, a.secondary:hover { border-color: var(--accent-dim); }
+
+  .progress-wrap { background: #0c0e12; border-radius: 4px; height: 6px; overflow: hidden; margin: 8px 0; }
+  .progress-bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.2s; }
+  .render-divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+  select.select-input {
+    background: #0c0e12; border: 1px solid var(--border); color: var(--text);
+    padding: 6px 8px; border-radius: 6px; font-size: 0.85rem;
+  }
 
   .preview-video-wrap {
     width: 100%; aspect-ratio: 9/16; background: #000; border-radius: 8px; overflow: hidden;
@@ -239,10 +248,34 @@
       내보낸 JSON은 모든 클립의 모든 구간을 최종 영상 순서대로 나열하고, 각 구간의 원본 시간(<code class="small">sourceSegment</code>)과
       캡션을 담고 있어 이후 ffmpeg concat + ASS 자막 생성 스크립트의 입력으로 그대로 쓸 수 있습니다.
     </p>
+
+    <hr class="render-divider">
+    <h3 style="margin-top:0;font-size:1rem;">최종 영상 만들기</h3>
+    <div class="field" style="margin-bottom:10px;">
+      <label>출력 비율</label>
+      <select id="outputRatio" class="select-input">
+        <option value="9:16" selected>9:16 (숏폼)</option>
+        <option value="1:1">1:1 (정사각형)</option>
+        <option value="16:9">16:9 (가로)</option>
+      </select>
+    </div>
+    <button class="primary" id="renderBtn" style="width:100%;">🎬 최종 영상 만들기 (트리밍+합치기+자막 하드섭)</button>
+    <div class="preview-status" id="renderStatus"></div>
+    <div class="progress-wrap" id="renderProgressWrap" style="display:none;">
+      <div class="progress-bar" id="renderProgressBar"></div>
+    </div>
+    <video id="renderResultVideo" controls style="width:100%;border-radius:8px;display:none;margin-top:8px;"></video>
+    <a id="renderDownloadLink" class="secondary" style="display:none;width:100%;margin-top:8px;" download="cooking-video.mp4">⬇ 완성 영상 다운로드 (mp4)</a>
+    <p style="font-size:0.7rem;color:var(--muted);margin-top:8px;line-height:1.5;">
+      ffmpeg.wasm으로 브라우저 안에서 전부 처리합니다 (서버 업로드 없음). 최초 실행 시 인코딩 엔진(~30MB)을
+      한 번 내려받고, 이후에는 같은 브라우저 탭 안에서 재사용됩니다. 클립이 많거나 길면 시간이 걸릴 수 있습니다.
+    </p>
   </div>
 </div>
 
-<script>
+<script type="module">
+import { renderFinalVideo } from './render.js';
+
 (function () {
   "use strict";
 
@@ -268,6 +301,13 @@
   const aiTopicInput = document.getElementById('aiTopic');
   const aiToneInput = document.getElementById('aiTone');
   const aiStatus = document.getElementById('aiStatus');
+  const outputRatioSelect = document.getElementById('outputRatio');
+  const renderBtn = document.getElementById('renderBtn');
+  const renderStatus = document.getElementById('renderStatus');
+  const renderProgressWrap = document.getElementById('renderProgressWrap');
+  const renderProgressBar = document.getElementById('renderProgressBar');
+  const renderResultVideo = document.getElementById('renderResultVideo');
+  const renderDownloadLink = document.getElementById('renderDownloadLink');
 
   uploadBox.addEventListener('click', () => fileInput.click());
   uploadBox.addEventListener('dragover', e => { e.preventDefault(); });
@@ -739,6 +779,46 @@
     a.download = 'clip-segments.json';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // ---- final render: trim + concat + ASS hardsub, all via ffmpeg.wasm in-browser ----
+  function dimsForRatio(ratio) {
+    if (ratio === '1:1') return { width: 1080, height: 1080 };
+    if (ratio === '16:9') return { width: 1920, height: 1080 };
+    return { width: 1080, height: 1920 };
+  }
+
+  renderBtn.addEventListener('click', async () => {
+    const playlist = flattenSegments();
+    if (!playlist.length) { renderStatus.textContent = '먼저 클립을 업로드하고 구간을 만들어주세요.'; return; }
+
+    renderBtn.disabled = true;
+    renderResultVideo.style.display = 'none';
+    renderDownloadLink.style.display = 'none';
+    renderProgressWrap.style.display = 'block';
+    renderProgressBar.style.width = '0%';
+    renderStatus.textContent = '인코딩 엔진 불러오는 중... (최초 1회, 다소 걸릴 수 있음)';
+
+    const { width, height } = dimsForRatio(outputRatioSelect.value);
+    try {
+      const blob = await renderFinalVideo(playlist, { width, height, fps: 30 }, {
+        onStage: (msg) => { renderStatus.textContent = msg; },
+        onProgress: (p) => { renderProgressBar.style.width = (p * 100).toFixed(0) + '%'; },
+        onLog: (msg) => { console.log('[ffmpeg]', msg); },
+      });
+      const url = URL.createObjectURL(blob);
+      renderResultVideo.src = url;
+      renderResultVideo.style.display = 'block';
+      renderDownloadLink.href = url;
+      renderDownloadLink.style.display = 'block';
+      renderStatus.textContent = '완성! 아래에서 미리보고 다운로드하세요.';
+    } catch (err) {
+      console.error(err);
+      renderStatus.textContent = '실패: ' + err.message;
+    } finally {
+      renderBtn.disabled = false;
+      renderProgressWrap.style.display = 'none';
+    }
   });
 
   render();
